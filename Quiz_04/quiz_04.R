@@ -1,0 +1,12 @@
+install.packages("AppliedPredictiveModeling")
+install.packages("caret")
+install.packages("ElemStatLearn")
+install.packages("pgmm")
+install.packages("rpart")
+install.packages("gbm")
+install.packages("lubridate")
+install.packages("forecast")
+install.packages("e1071")
+install.packages("lars")
+install.packages('elesticnet')
+
