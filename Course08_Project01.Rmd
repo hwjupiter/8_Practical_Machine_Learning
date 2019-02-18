@@ -1,0 +1,103 @@
+---
+title: "An Exercise in Model Fitting and Output Prediction"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+This report details the development and training of a random forest machine learning algorithm for the classification of movements. The movement data describes various exercises performed by participants, and was gathered from accelerometers fitted at various positions on their bodies or dumbells. For more information regarding the data set, please see the link below:
+http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har 
+
+## Data Processing
+
+The training data set must be read into R and any unnecessary variables must be removed. These include those that are not directly related to the measurement variables, any variables that show little or no variability in their readings and those that have a large number of NAs. The remaining variables will be used as the predictors for the classe output of the model.
+```{r train01}
+library(caret)
+training01 <- read.csv("~/R Exercises/8_Practical_Machine_Learning/Course_Project_01/pml-training.csv")
+```
+
+The first seven columns an be removed staright away - they do not contain any accelerometer readings, but rather give the information about the participants. This is not relevant to this exercise.
+
+```{r train02}
+# remove the variables that do not contain any useful numerical information
+training02 <- training01[,-(1:7)]
+```
+
+Variables that have very little variability in their readings will not add any information to the data set and can therefore be removed. The same is true for those that have large numbers of NAs.
+
+```{r train03}
+# identify and remove the zero variability variables
+zeroVar <- nearZeroVar(training02)
+training03 <- training02[,-zeroVar]
+
+# calculate the mean values of the NA values in the remaining variables. Note that some exploratory analysis reveals 
+# that the variables appear to either have numbers or be NAs so the lowest cut-off value of 0.1 can be used.
+all_NA3 <- sapply(training03, function(x) mean(is.na(x))) > 0.10
+training04 <- training03[,all_NA3==FALSE] # this is now the final complete training data set
+```
+
+## Model Development and Fitting
+
+Now that the unneccessary variables have been removed, the training data set must be split up into smaller training and testing data sets. The seed is set to ensure repeatability. 
+
+```{r model01}
+set.seed(1986)
+inTrain <- createDataPartition(y=training04$classe, p=0.6, list=F)  # data is split 60 - 40
+final_train <- training04[inTrain,]
+final_test <- training04[-inTrain,]
+```
+
+We can now fit a model to the new, smaller training data set. 5-fold cross validation is used as a fitting control method to try to minimise over-fitting to a specific training data set. The model to be fitted is a random forest model. This is an effective classification algorithm that is also relatively simple to implement. 
+
+```{r model02}
+# use cross-validation as a fitting control for the model to prevent overfitting. Will use 5 fold
+fit_Control <- trainControl(method = "cv", number = 5, verboseIter = FALSE)
+```
+
+Now that the model is done, we can run it on the smaller test set and try to predict the classe output for each of the entries in the datat set. Comparing the predicted outputs with the actual outputs yields the model's accuracy and the potential out-of-sample error that we might get when running this model on an unseen data set.
+
+```{r model03}
+# now train a random forest model on the training data det that was split out above
+fit_model <- train(classe~., data = final_train, method = "rf", trControl = fit_Control)
+# show the final model statistics
+fit_model$finalModel
+
+# now use the model to predict the outputs of the testing data set
+# note: still only using final_test, NOT THE EVALUATION CSV
+pred_model <- predict(fit_model, newdata = final_test)
+# generate the confusion matrix to get the accuracy and error rates
+confusionMatrix(final_test$classe, pred_model)
+```
+
+As can be seen, the accuracy is calculated to be 99.4%, which is very good. This means that the out-of sample error rate is about 0.6%. This is acceptable and this is therefore the model that will be used to predict on the final test data set.
+
+## Test Data Predictions
+
+Before the model can be run on the as-yet-unseen test data set, it must be re-trained on the complete training data set. We can use the processed data set from above, before it was split up. 
+
+It must also be noted that the testing data set must be processed in the same manner as the training data set was. Therefore, the non-relevant variables must be removed, as must the variables with low variability and lots of NA readings.
+
+```{r test_data}
+# read in the data set
+testing01 <- read.csv("~/R Exercises/8_Practical_Machine_Learning/Course_Project_01/pml-testing.csv")
+#remove the non-numeric columns
+testing02 <- testing01[,-(1:7)]
+# remove the variables with low variability
+zeroVar02 <- nearZeroVar(testing02)
+testing03 <- testing02[,-zeroVar02]
+# remove those variables that have lots of NA readings
+all_NA_test <- sapply(testing03, function(x) mean(is.na(x))) > 0.10
+testing04 <- testing03[,all_NA_test==FALSE] # this is now the final testing data set
+```
+
+Once the data sets have been finalised, we can fit the random forest model to the complete training data set. Note that the same fitting control method will be used as was used previously, namely 5-fold cross-validation. This model can then be used to predict the classe outputs of the final testing data set.
+
+```{r final_pred}
+fit_model_01 <- train(classe~., data = training04, method = "rf", trControl = fit_Control)
+fit_model_01$finalModel
+pred_model_01 <- predict(fit_model_01, newdata = testing04)
+```
